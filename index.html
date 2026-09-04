@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>হিসাব খাতা</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+Bengali:wght@500;700&family=Noto+Sans+Bengali:wght@400;500;600;700&display=swap');
+  body { font-family: 'Noto Sans Bengali', system-ui, sans-serif; }
+  .serif { font-family: 'Noto Serif Bengali', serif; }
+  .paper {
+    background-color: #FAF6EC;
+    background-image: linear-gradient(#e7dfcd 1px, transparent 1px);
+    background-size: 100% 2.1rem;
+  }
+  .ledger { position: relative; border-left: none; padding-left: 2rem; }
+  .ledger::before {
+    content: "";
+    position: absolute;
+    left: 0.9rem;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #8a3b3b;
+    opacity: 0.55;
+  }
+  input:focus, select:focus, button:focus-visible {
+    outline: 2px solid #2F4A3E;
+    outline-offset: 1px;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body class="paper min-h-screen w-full">
+
+<!-- ===================== LOGIN SCREEN ===================== -->
+<div id="login-screen" class="min-h-screen w-full flex items-center justify-center p-6">
+  <div class="w-full max-w-sm">
+    <div class="text-center mb-8">
+      <div class="serif text-4xl text-[#5c2323] mb-1">হিসাব খাতা</div>
+      <div class="text-sm text-[#6b6153]">দুই ফোনে এক হিসাব, সবসময় আপডেট</div>
+    </div>
+    <form id="login-form" class="bg-white/70 border border-[#e7dfcd] rounded-sm p-6 shadow-sm" style="border-top:4px solid #8a3b3b;">
+      <label class="block text-sm text-[#4a4436] mb-1">দোকানের আইডি</label>
+      <input id="shop-id" placeholder="যেমনঃ karim-store" class="w-full mb-4 px-3 py-2.5 rounded-sm border border-[#d9cfb8] bg-[#FEFDF9] text-[#2B2620]" />
+      <label class="block text-sm text-[#4a4436] mb-1">পিন (৪ সংখ্যা বা যেকোনো কোড)</label>
+      <input id="shop-pin" type="password" inputmode="numeric" placeholder="পিন দিন" class="w-full mb-2 px-3 py-2.5 rounded-sm border border-[#d9cfb8] bg-[#FEFDF9] text-[#2B2620]" />
+      <p class="text-xs text-[#8a8168] mb-4">নতুন আইডি হলে এই পিন দিয়েই খাতা তৈরি হবে। একই আইডি ও পিন অন্য ফোনে দিলে একই হিসাব দেখা যাবে।</p>
+      <p id="login-error" class="text-sm text-[#8a3b3b] mb-3 hidden"></p>
+      <button type="submit" id="login-btn" class="w-full py-2.5 rounded-sm bg-[#2F4A3E] text-[#FAF6EC] font-medium">ঢুকুন</button>
+    </form>
+  </div>
+</div>
+
+<!-- ===================== APP SCREEN ===================== -->
+<div id="app-screen" class="min-h-screen w-full hidden">
+  <div class="max-w-2xl mx-auto px-4 py-5">
+
+    <div class="flex items-start justify-between mb-5">
+      <div>
+        <div class="serif text-2xl text-[#5c2323]">হিসাব খাতা</div>
+        <div id="shop-label" class="text-xs text-[#8a8168] mt-0.5">দোকান:</div>
+      </div>
+      <button id="logout-btn" class="text-sm px-3 py-1.5 rounded-sm border border-[#d9cfb8] text-[#4a4436] bg-white/60">লগআউট</button>
+    </div>
+
+    <!-- Summary -->
+    <div class="ledger bg-white/70 border border-[#e7dfcd] rounded-sm pr-4 py-4 mb-6">
+      <div class="serif text-lg text-[#2B2620] mb-3">সারসংক্ষেপ</div>
+      <div class="grid grid-cols-2 gap-y-2 text-sm">
+        <div class="text-[#6b6153]">মোট ক্রয় মূল্য</div>
+        <div class="text-right text-[#2B2620]" id="sum-buy">৳০</div>
+        <div class="text-[#6b6153]">মোট বিক্রয় মূল্য</div>
+        <div class="text-right text-[#2B2620]" id="sum-sell">৳০</div>
+        <div class="text-[#6b6153] font-medium pt-1 border-t border-[#e7dfcd] mt-1">মূল লাভ</div>
+        <div class="text-right font-semibold pt-1 border-t border-[#e7dfcd] mt-1" id="sum-profit">৳০</div>
+      </div>
+      <div class="mt-4 grid grid-cols-2 gap-3">
+        <div class="bg-[#2F4A3E] text-[#FAF6EC] rounded-sm px-3 py-2.5">
+          <div class="text-xs opacity-80">লাভের ৩০%</div>
+          <div class="text-lg font-semibold" id="sum-30">৳০</div>
+        </div>
+        <div class="bg-[#8a3b3b] text-[#FAF6EC] rounded-sm px-3 py-2.5">
+          <div class="text-xs opacity-80">বাকি ৭০%</div>
+          <div class="text-lg font-semibold" id="sum-70">৳০</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add product -->
+    <div class="ledger bg-white/70 border border-[#e7dfcd] rounded-sm pr-4 py-4 mb-6">
+      <div class="serif text-lg text-[#2B2620] mb-3">নতুন পণ্য যোগ করুন</div>
+      <form id="add-product-form" class="space-y-3">
+        <div>
+          <label class="block text-xs text-[#6b6153] mb-1">ক্যাটাগরি</label>
+          <div class="flex gap-2">
+            <select id="prod-category" class="flex-1 px-3 py-2 rounded-sm border border-[#d9cfb8] bg-[#FEFDF9] text-[#2B2620]">
+              <option value="">বাছাই করুন</option>
+            </select>
+            <button type="button" id="toggle-add-cat" class="px-3 py-2 rounded-sm border border-[#d9cfb8] text-[#4a4436] bg-white/60 text-sm">+ নতুন</button>
+          </div>
+          <div id="add-cat-row" class="flex gap-2 mt-2 hidden">
+            <input id="new-cat" placeholder="ক্যাটাগরির নাম" class="flex-1 px-3 py-2 rounded-sm border border-[#d9cfb8] bg-[#FEFDF9] text-[#2B2620]" />
+            <button type="button" id="add-cat-btn" class="px-3 py-2 rounded-sm bg-[#2F4A3E] text-[#FAF6EC] text-sm">যোগ করুন</button>
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs text-[#6b6153] mb-1">পণ্যের নাম</label>
+          <input id="prod-name" placeholder="যেমনঃ চাল ৫০ কেজি" class="w-full px-3 py-2 rounded-sm border border-[#d9cfb8] bg-[#FEFDF9] text-[#2B2620]" />
+        </div>
+        <div class="grid grid-cols-3 gap-2">
+          <div>
+            <label class="block text-xs text-[#6b6153] mb-1">ক্রয় মূল্য</label>
+            <input id="prod-buy" type="number" inputmode="decimal" placeholder="০" class="w-full px-3 py-2 rounded-sm border border-[#d9cfb8] bg-[#FEFDF9] text-[#2B2620]" />
+          </div>
+          <div>
+            <label class="block text-xs text-[#6b6153] mb-1">বিক্রয় মূল্য</label>
+            <input id="prod-sell" type="number" inputmode="decimal" placeholder="০" class="w-full px-3 py-2 rounded-sm border border-[#d9cfb8] bg-[#FEFDF9] text-[#2B2620]" />
+          </div>
+          <div>
+            <label class="block text-xs text-[#6b6153] mb-1">পরিমাণ</label>
+            <input id="prod-qty" type="number" inputmode="numeric" value="1" class="w-full px-3 py-2 rounded-sm border border-[#d9cfb8] bg-[#FEFDF9] text-[#2B2620]" />
+          </div>
+        </div>
+        <button type="submit" class="w-full py-2.5 rounded-sm bg-[#5c2323] text-[#FAF6EC] font-medium">পণ্য যোগ করুন</button>
+      </form>
+    </div>
+
+    <!-- Product list -->
+    <div class="ledger bg-white/70 border border-[#e7dfcd] rounded-sm pr-4 py-4">
+      <div class="flex items-center justify-between mb-3">
+        <div class="serif text-lg text-[#2B2620]">পণ্যের তালিকা</div>
+        <select id="filter-category" class="text-sm px-2 py-1.5 rounded-sm border border-[#d9cfb8] bg-[#FEFDF9] text-[#2B2620]">
+          <option value="সব">সব ক্যাটাগরি</option>
+        </select>
+      </div>
+      <div id="product-list" class="divide-y divide-[#e7dfcd]">
+        <p class="text-sm text-[#8a8168] py-4">লোড হচ্ছে...</p>
+      </div>
+    </div>
+
+    <p class="text-xs text-[#8a8168] text-center mt-6 pb-8">একই দোকানের আইডি ও পিন অন্য ফোনে ব্যবহার করলে হিসাব সয়ংক্রিয়ভাবে আপডেট হবে।</p>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   ১) নিজের Firebase প্রজেক্টের কনফিগ এখানে বসান
+   (Firebase Console > Project settings > Your apps > Web app)
+   ========================================================= */
+const firebaseConfig = {
+  apiKey: "AIzaSyBpHgOy8m3ywSs7qRNmBQFkVnsMHCiCBog",
+  authDomain: "hisab-khata-676e1.firebaseapp.com",
+  databaseURL: "https://hisab-khata-676e1-default-rtdb.firebaseio.com",
+  projectId: "hisab-khata-676e1",
+  storageBucket: "hisab-khata-676e1.firebasestorage.app",
+  messagingSenderId: "1008797282658",
+  appId: "1:1008797282658:web:be643db211284ad46bbc3b"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+const DEFAULT_CATEGORIES = ["মুদি পণ্য", "ইলেকট্রনিক্স", "পোশাক", "অন্যান্য"];
+
+let shopId = "";
+let products = {};
+let categories = {};
+let filterCat = "সব";
+let productsListenerRef = null;
+let categoriesListenerRef = null;
+
+const fmt = (n) => "৳" + (Math.round((n + Number.EPSILON) * 100) / 100).toLocaleString("bn-BD", { maximumFractionDigits: 2 });
+
+function sanitizeKey(s) {
+  return s.trim().toLowerCase().replace(/[.#$\[\]\/\s]+/g, "-");
+}
+
+// -------- LOGIN --------
+document.getElementById("login-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const errEl = document.getElementById("login-error");
+  errEl.classList.add("hidden");
+  const idRaw = document.getElementById("shop-id").value;
+  const pin = document.getElementById("shop-pin").value.trim();
+  const id = sanitizeKey(idRaw);
+
+  if (!id || !pin) {
+    errEl.textContent = "দোকানের আইডি এবং পিন দিন।";
+    errEl.classList.remove("hidden");
+    return;
+  }
+
+  const btn = document.getElementById("login-btn");
+  btn.disabled = true;
+  btn.textContent = "লোড হচ্ছে...";
+
+  try {
+    const pinRef = db.ref("shops/" + id + "/pin");
+    const snap = await pinRef.get();
+    if (snap.exists()) {
+      if (snap.val() !== pin) {
+        errEl.textContent = "পিন ভুল হয়েছে। আবার চেষ্টা করুন।";
+        errEl.classList.remove("hidden");
+        btn.disabled = false;
+        btn.textContent = "ঢুকুন";
+        return;
+      }
+    } else {
+      await pinRef.set(pin);
+      // seed default categories for a brand new shop
+      const catRef = db.ref("shops/" + id + "/categories");
+      const obj = {};
+      DEFAULT_CATEGORIES.forEach((c) => { obj[db.ref().push().key] = c; });
+      await catRef.set(obj);
+    }
+    shopId = id;
+    startApp();
+  } catch (err) {
+    console.error(err);
+    errEl.textContent = "সংযোগে সমস্যা হয়েছে। ইন্টারনেট চেক করুন অথবা Firebase কনফিগ ঠিক আছে কিনা দেখুন।";
+    errEl.classList.remove("hidden");
+  }
+  btn.disabled = false;
+  btn.textContent = "ঢুকুন";
+});
+
+function startApp() {
+  document.getElementById("login-screen").classList.add("hidden");
+  document.getElementById("app-screen").classList.remove("hidden");
+  document.getElementById("shop-label").textContent = "দোকান: " + shopId;
+
+  // realtime listeners -> auto-sync across phones
+  productsListenerRef = db.ref("shops/" + shopId + "/products");
+  productsListenerRef.on("value", (snap) => {
+    products = snap.val() || {};
+    renderProducts();
+  });
+
+  categoriesListenerRef = db.ref("shops/" + shopId + "/categories");
+  categoriesListenerRef.on("value", (snap) => {
+    categories = snap.val() || {};
+    renderCategoryOptions();
+  });
+}
+
+document.getElementById("logout-btn").addEventListener("click", () => {
+  if (productsListenerRef) productsListenerRef.off();
+  if (categoriesListenerRef) categoriesListenerRef.off();
+  products = {};
+  categories = {};
+  shopId = "";
+  document.getElementById("shop-pin").value = "";
+  document.getElementById("app-screen").classList.add("hidden");
+  document.getElementById("login-screen").classList.remove("hidden");
+});
+
+// -------- CATEGORIES --------
+document.getElementById("toggle-add-cat").addEventListener("click", () => {
+  document.getElementById("add-cat-row").classList.toggle("hidden");
+});
+
+document.getElementById("add-cat-btn").addEventListener("click", async () => {
+  const input = document.getElementById("new-cat");
+  const val = input.value.trim();
+  if (!val) return;
+  const existingNames = Object.values(categories);
+  if (existingNames.includes(val)) {
+    input.value = "";
+    document.getElementById("add-cat-row").classList.add("hidden");
+    return;
+  }
+  const key = db.ref().push().key;
+  await db.ref("shops/" + shopId + "/categories/" + key).set(val);
+  input.value = "";
+  document.getElementById("add-cat-row").classList.add("hidden");
+  document.getElementById("prod-category").value = val;
+});
+
+function renderCategoryOptions() {
+  const sel = document.getElementById("prod-category");
+  const filterSel = document.getElementById("filter-category");
+  const currentSel = sel.value;
+  const currentFilter = filterSel.value;
+
+  sel.innerHTML = '<option value="">বাছাই করুন</option>';
+  filterSel.innerHTML = '<option value="সব">সব ক্যাটাগরি</option>';
+
+  Object.values(categories).forEach((name) => {
+    const o1 = document.createElement("option");
+    o1.value = name; o1.textContent = name;
+    sel.appendChild(o1);
+    const o2 = document.createElement("option");
+    o2.value = name; o2.textContent = name;
+    filterSel.appendChild(o2);
+  });
+
+  sel.value = currentSel;
+  filterSel.value = currentFilter || "সব";
+}
+
+document.getElementById("filter-category").addEventListener("change", (e) => {
+  filterCat = e.target.value;
+  renderProducts();
+});
+
+// -------- PRODUCTS --------
+document.getElementById("add-product-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const category = document.getElementById("prod-category").value;
+  const name = document.getElementById("prod-name").value.trim();
+  const buy = parseFloat(document.getElementById("prod-buy").value);
+  const sell = parseFloat(document.getElementById("prod-sell").value);
+  const qty = parseFloat(document.getElementById("prod-qty").value) || 1;
+
+  if (!category || !name || isNaN(buy) || isNaN(sell)) return;
+
+  const key = db.ref().push().key;
+  await db.ref("shops/" + shopId + "/products/" + key).set({
+    category, name, buy, sell, qty, addedAt: Date.now()
+  });
+
+  document.getElementById("prod-name").value = "";
+  document.getElementById("prod-buy").value = "";
+  document.getElementById("prod-sell").value = "";
+  document.getElementById("prod-qty").value = "1";
+});
+
+async function deleteProduct(key) {
+  await db.ref("shops/" + shopId + "/products/" + key).remove();
+}
+
+function renderProducts() {
+  const list = document.getElementById("product-list");
+  const entries = Object.entries(products);
+
+  let totalBuy = 0, totalSell = 0;
+  entries.forEach(([, p]) => {
+    totalBuy += p.buy * p.qty;
+    totalSell += p.sell * p.qty;
+  });
+  const totalProfit = totalSell - totalBuy;
+
+  document.getElementById("sum-buy").textContent = fmt(totalBuy);
+  document.getElementById("sum-sell").textContent = fmt(totalSell);
+  const profitEl = document.getElementById("sum-profit");
+  profitEl.textContent = fmt(totalProfit);
+  profitEl.className = "text-right font-semibold pt-1 border-t border-[#e7dfcd] mt-1 " + (totalProfit >= 0 ? "text-[#2F4A3E]" : "text-[#8a3b3b]");
+  document.getElementById("sum-30").textContent = fmt(totalProfit * 0.3);
+  document.getElementById("sum-70").textContent = fmt(totalProfit * 0.7);
+
+  const visible = entries.filter(([, p]) => filterCat === "সব" || p.category === filterCat);
+
+  if (visible.length === 0) {
+    list.innerHTML = '<p class="text-sm text-[#8a8168] py-4">এখনো কোনো পণ্য যোগ করা হয়নি। উপরের ফর্ম দিয়ে শুরু করুন।</p>';
+    return;
+  }
+
+  visible.sort((a, b) => (b[1].addedAt || 0) - (a[1].addedAt || 0));
+
+  list.innerHTML = "";
+  visible.forEach(([key, p]) => {
+    const profit = (p.sell - p.buy) * p.qty;
+    const row = document.createElement("div");
+    row.className = "py-3 flex items-start justify-between gap-3";
+    row.innerHTML = `
+      <div class="min-w-0">
+        <div class="text-[#2B2620] font-medium truncate">${p.name}</div>
+        <div class="text-xs text-[#8a8168] mt-0.5">${p.category} · পরিমাণ ${p.qty}</div>
+        <div class="text-xs text-[#6b6153] mt-1">ক্রয় ${fmt(p.buy)} → বিক্রয় ${fmt(p.sell)}</div>
+      </div>
+      <div class="text-right shrink-0">
+        <div class="font-semibold ${profit >= 0 ? "text-[#2F4A3E]" : "text-[#8a3b3b]"}">${fmt(profit)}</div>
+        <button data-key="${key}" class="del-btn text-xs text-[#8a3b3b] mt-1 underline">মুছুন</button>
+      </div>
+    `;
+    list.appendChild(row);
+  });
+
+  document.querySelectorAll(".del-btn").forEach((btn) => {
+    btn.addEventListener("click", () => deleteProduct(btn.getAttribute("data-key")));
+  });
+}
+</script>
+</body>
+</html>
